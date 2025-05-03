@@ -3,6 +3,7 @@ package com.example.aistudy.ui.screen
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
@@ -33,6 +35,8 @@ import com.example.aistudy.api.Flashcard
 import com.example.aistudy.api.FlashcardSet
 import com.example.aistudy.ui.navigation.Screen
 import com.example.aistudy.ui.viewmodel.FlashcardViewModel
+import me.saket.swipe.SwipeAction
+import me.saket.swipe.SwipeableActionsBox
 
 // Define navigation route constants
 private const val FLASHCARD_DETAIL_ROUTE = "flashcard_detail"
@@ -400,19 +404,6 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
                         )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Debug button for creating test flashcards
-                        Button(
-                            onClick = { viewModel.createTestFlashcards() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("Create Test Flashcards")
-                        }
                     }
                 } else {
                     LazyVerticalGrid(
@@ -426,11 +417,14 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
                             it.title.contains(searchText, ignoreCase = true) ||
                             it.type.contains(searchText, ignoreCase = true)
                         }) { flashcardSet ->
-                            FlashcardSetItem(
+                            SwipeableFlashcardSetItem(
                                 flashcardSet = flashcardSet,
                                 onClick = {
                                     viewModel.selectSet(flashcardSet.id)
                                     navController.navigate("$FLASHCARD_DETAIL_ROUTE/${flashcardSet.id}")
+                                },
+                                onDelete = {
+                                    viewModel.deleteFlashcardSet(flashcardSet.id)
                                 }
                             )
                         }
@@ -438,6 +432,34 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SwipeableFlashcardSetItem(flashcardSet: FlashcardSet, onClick: () -> Unit, onDelete: () -> Unit) {
+    val delete = SwipeAction(
+        icon = {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+        },
+        background = Color.Red,
+        onSwipe = { onDelete() },
+        isUndo = false
+    )
+    
+    SwipeableActionsBox(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        startActions = listOf(delete),
+        swipeThreshold = 120.dp,
+        backgroundUntilSwipeThreshold = Color.Red.copy(alpha = 0.2f)
+    ) {
+        FlashcardSetItem(flashcardSet, onClick)
     }
 }
 

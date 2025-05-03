@@ -87,4 +87,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Swipe to reveal/delete
+    implementation("me.saket.swipe:swipe:1.1.1")
 }
