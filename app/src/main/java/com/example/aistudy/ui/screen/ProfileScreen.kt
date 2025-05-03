@@ -150,7 +150,7 @@ fun ProfileScreen(
     // If currentUser is null, fetch it again (handle deep linking cases)
     LaunchedEffect(currentUser) {
         if (currentUser == null) {
-            navController?.navigate(Screen.Login.route) {
+            navController?.navigate("login") {
                 popUpTo(0) { inclusive = true }
             }
         } else if (userData == null) {
@@ -174,6 +174,13 @@ fun ProfileScreen(
                     Icon(Icons.Default.Edit, "Edit Profile")
                 }
             }
+        },
+        bottomBar = {
+            // Add BottomNavBar here
+            BottomNavBar(
+                selectedIndex = 3, // Profile is index 3
+                navController = navController
+            )
         }
     ) { paddingValues ->
         Column(
@@ -223,7 +230,7 @@ fun ProfileScreen(
             
             SignOutButton(onClick = { 
                 authViewModel.logout()
-                navController?.navigate(Screen.Login.route) {
+                navController?.navigate("login") {
                     popUpTo(0) { inclusive = true }
                 }
             })
