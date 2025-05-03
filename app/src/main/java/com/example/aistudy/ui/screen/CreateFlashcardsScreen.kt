@@ -27,8 +27,7 @@ import androidx.navigation.NavController
 import com.example.aistudy.ui.viewmodel.FlashcardViewModel
 
 @Composable
-fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
-    val viewModel: FlashcardViewModel = viewModel()
+fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewModel: FlashcardViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     
@@ -40,7 +39,12 @@ fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController)
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            viewModel.generateFlashcardsFromFile(context, it)
+            if (title.isBlank()) {
+                // Show error or hint that title is required
+                viewModel.generateFlashcardsFromFile(context, it, "Document Flashcards")
+            } else {
+                viewModel.generateFlashcardsFromFile(context, it, title)
+            }
             // Navigate back to flashcards screen once file is uploaded
             navController.navigate(Routes.FLASHCARDS)
         }

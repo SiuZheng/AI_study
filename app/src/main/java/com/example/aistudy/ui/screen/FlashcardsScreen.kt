@@ -30,29 +30,102 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.aistudy.api.Flashcard
+import com.example.aistudy.api.FlashcardSet
+import com.example.aistudy.ui.navigation.Screen
 import com.example.aistudy.ui.viewmodel.FlashcardViewModel
 
+// Define navigation route constants
+private const val FLASHCARD_DETAIL_ROUTE = "flashcard_detail"
+
 @Composable
-fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
-    val viewModel: FlashcardViewModel = viewModel()
-    val flashcards by viewModel.flashcards.collectAsState(initial = emptyList())
+fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewModel: FlashcardViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
+    val flashcardSets by viewModel.flashcardSets.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     
+    // Load flashcard sets when the screen launches
+    LaunchedEffect(Unit) {
+        viewModel.loadUserFlashcardSets()
+    }
+    
     val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
+    
+    // State for file upload dialog
+    var showFileUploadDialog by remember { mutableStateOf(false) }
+    var fileUploadTitle by remember { mutableStateOf("") }
+    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
     
     // File picker launcher
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            viewModel.generateFlashcardsFromFile(context, it)
+            selectedFileUri = it
+            showFileUploadDialog = true
         }
+    }
+    
+    // File upload dialog
+    if (showFileUploadDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showFileUploadDialog = false 
+                selectedFileUri = null
+                fileUploadTitle = ""
+            },
+            title = { Text("Enter topic name") },
+            text = {
+                Column {
+                    Text(
+                        "Give your flashcard set a name:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = fileUploadTitle,
+                        onValueChange = { fileUploadTitle = it },
+                        placeholder = { Text("Topic name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedFileUri?.let {
+                            viewModel.generateFlashcardsFromFile(context, it, fileUploadTitle)
+                            showFileUploadDialog = false
+                            selectedFileUri = null
+                            fileUploadTitle = ""
+                        }
+                    },
+                    enabled = fileUploadTitle.isNotBlank()
+                ) {
+                    Text("Upload")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showFileUploadDialog = false 
+                        selectedFileUri = null
+                        fileUploadTitle = ""
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
     
     // Type selection
     var showTypeDialog by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf("") }
+    var showTypeNameDialog by remember { mutableStateOf(false) }
+    var typeTitle by remember { mutableStateOf("") }
     val flashcardTypes = listOf("math", "programming", "language", "history", "science")
     
     if (showTypeDialog) {
@@ -64,8 +137,15 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
                     flashcardTypes.forEach { type ->
                         TextButton(
                             onClick = {
-                                viewModel.generateFlashcardsFromType(type)
+                                selectedType = type
                                 showTypeDialog = false
+                                
+                                // Pre-populate the title with a capitalized type name
+                                val typeName = type.replaceFirstChar { 
+                                    if (it.isLowerCase()) it.titlecase() else it.toString() 
+                                }
+                                typeTitle = "$typeName Flashcards"
+                                showTypeNameDialog = true
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -82,6 +162,68 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
             dismissButton = {
                 TextButton(
                     onClick = { showTypeDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // Type name customization dialog
+    if (showTypeNameDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showTypeNameDialog = false 
+                selectedType = ""
+                typeTitle = ""
+            },
+            title = { Text("Customize set name") },
+            text = {
+                Column {
+                    Text(
+                        "Give your flashcard set a name:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = typeTitle,
+                        onValueChange = { typeTitle = it },
+                        placeholder = { Text("Topic name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (selectedType.isNotBlank()) {
+                            val customTitle = if (typeTitle.isBlank()) {
+                                "${selectedType.replaceFirstChar { 
+                                    if (it.isLowerCase()) it.titlecase() else it.toString() 
+                                }} Flashcards"
+                            } else {
+                                typeTitle
+                            }
+                            
+                            viewModel.generateFlashcardsFromType(selectedType, customTitle)
+                            showTypeNameDialog = false
+                            selectedType = ""
+                            typeTitle = ""
+                        }
+                    }
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showTypeNameDialog = false 
+                        selectedType = ""
+                        typeTitle = ""
+                    }
                 ) {
                     Text("Cancel")
                 }
@@ -231,7 +373,7 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
                 }
             }
             
-            // Flashcard Grid with loading state
+            // Flashcard Sets Grid
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -240,13 +382,13 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
             ) {
                 if (isLoading) {
                     CircularProgressIndicator()
-                } else if (flashcards.isEmpty()) {
+                } else if (flashcardSets.isEmpty()) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            "No flashcards yet",
+                            "No flashcard sets yet",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -258,20 +400,39 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
                         )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Debug button for creating test flashcards
+                        Button(
+                            onClick = { viewModel.createTestFlashcards() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text("Create Test Flashcards")
+                        }
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                        columns = GridCells.Fixed(1),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(flashcards.filter { 
+                        items(flashcardSets.filter { 
                             searchText.isEmpty() || 
-                            it.question.contains(searchText, ignoreCase = true) ||
-                            it.answer.contains(searchText, ignoreCase = true)
-                        }) { flashcard ->
-                            FlashcardItem(flashcard)
+                            it.title.contains(searchText, ignoreCase = true) ||
+                            it.type.contains(searchText, ignoreCase = true)
+                        }) { flashcardSet ->
+                            FlashcardSetItem(
+                                flashcardSet = flashcardSet,
+                                onClick = {
+                                    viewModel.selectSet(flashcardSet.id)
+                                    navController.navigate("$FLASHCARD_DETAIL_ROUTE/${flashcardSet.id}")
+                                }
+                            )
                         }
                     }
                 }
@@ -281,16 +442,19 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController) {
 }
 
 @Composable
-fun FlashcardItem(flashcard: Flashcard) {
-    var showAnswer by remember { mutableStateOf(false) }
-    
-    Card(
-        modifier = Modifier.aspectRatio(1f),
+fun FlashcardSetItem(flashcardSet: FlashcardSet, onClick: () -> Unit) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
+        colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        onClick = { showAnswer = !showAnswer }
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 4.dp
+        )
     ) {
         Box(
             modifier = Modifier
@@ -298,13 +462,37 @@ fun FlashcardItem(flashcard: Flashcard) {
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (showAnswer) flashcard.answer else flashcard.question,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                fontWeight = if (showAnswer) FontWeight.Normal else FontWeight.Medium
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = flashcardSet.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "${flashcardSet.cards.size} cards",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "Tap to view",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 } 

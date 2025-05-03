@@ -2,6 +2,7 @@ package com.example.aistudy.api
 
 import android.content.Context
 import android.net.Uri
+import android.webkit.MimeTypeMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -23,10 +24,13 @@ class FlashcardRepository {
             // Convert Uri to File
             val file = uriToFile(context, fileUri)
             
+            // Determine MIME type based on file extension
+            val mimeType = getMimeType(file.name) ?: "application/octet-stream"
+            
             // Create request parts
             val stepPart = "flashcard".toRequestBody("text/plain".toMediaTypeOrNull())
             
-            val fileRequestBody = file.asRequestBody("application/octet-stream".toMediaTypeOrNull())
+            val fileRequestBody = file.asRequestBody(mimeType.toMediaTypeOrNull())
             val filePart = MultipartBody.Part.createFormData(
                 name = "file",
                 filename = file.name,
@@ -71,7 +75,10 @@ class FlashcardRepository {
     // Helper method to convert content Uri to File
     private fun uriToFile(context: Context, uri: Uri): File {
         val inputStream = context.contentResolver.openInputStream(uri)
-        val tempFile = File.createTempFile("upload", ".tmp", context.cacheDir)
+        
+        // Try to get the file extension from the Uri
+        val extension = getExtensionFromUri(context, uri)
+        val tempFile = File.createTempFile("upload", ".$extension", context.cacheDir)
         
         FileOutputStream(tempFile).use { outputStream ->
             inputStream?.copyTo(outputStream)
@@ -79,5 +86,18 @@ class FlashcardRepository {
         
         inputStream?.close()
         return tempFile
+    }
+    
+    // Get file extension from Uri
+    private fun getExtensionFromUri(context: Context, uri: Uri): String {
+        val contentResolver = context.contentResolver
+        val mimeType = contentResolver.getType(uri)
+        return MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "tmp"
+    }
+    
+    // Get MIME type from file name
+    private fun getMimeType(fileName: String): String? {
+        val extension = fileName.substringAfterLast('.', "")
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
     }
 } 
