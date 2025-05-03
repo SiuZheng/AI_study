@@ -253,6 +253,44 @@ class AuthViewModel : ViewModel() {
                 }
             }
     }
+    
+    /**
+     * Update the user's password
+     * 
+     * @param currentPassword The user's current password
+     * @param newPassword The new password to set
+     * @param onComplete Callback with success status and optional error message
+     */
+    fun updatePassword(currentPassword: String, newPassword: String, onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Get current user
+                val user = auth.currentUser ?: throw Exception("User not authenticated")
+                val email = user.email ?: throw Exception("User email not available")
+                
+                // Re-authenticate the user first (required for security-sensitive operations)
+                try {
+                    // Create credentials with current password
+                    val credential = com.google.firebase.auth.EmailAuthProvider
+                        .getCredential(email, currentPassword)
+                    
+                    // Re-authenticate
+                    user.reauthenticate(credential).await()
+                    
+                    // Now update the password
+                    user.updatePassword(newPassword).await()
+                    
+                    // Success
+                    onComplete(true, null)
+                } catch (e: Exception) {
+                    // Authentication failed
+                    onComplete(false, "Current password is incorrect")
+                }
+            } catch (e: Exception) {
+                onComplete(false, e.message ?: "Failed to update password")
+            }
+        }
+    }
 }
 
 sealed class LoginStatus {

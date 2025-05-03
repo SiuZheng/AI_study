@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -30,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -63,6 +67,12 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // State for forgot password dialog
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") }
+    var isResetEmailSending by remember { mutableStateOf(false) }
+    var resetEmailResult by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
     
     val loginStatus by authViewModel.loginStatus.observeAsState(LoginStatus.Initial)
     val currentUser by authViewModel.currentUser.observeAsState()
@@ -83,6 +93,128 @@ fun LoginScreen(
                 message = (loginStatus as LoginStatus.Error).message
             )
         }
+    }
+    
+    // Show result message after password reset attempt
+    LaunchedEffect(resetEmailResult) {
+        resetEmailResult?.let { (success, message) ->
+            if (success) {
+                snackbarHostState.showSnackbar(
+                    message = "Password reset link sent to your email"
+                )
+                // Reset the state
+                resetEmailResult = null
+                showForgotPasswordDialog = false
+            } else {
+                snackbarHostState.showSnackbar(
+                    message = message ?: "Failed to send reset email"
+                )
+                // Don't close dialog on error so user can try again
+            }
+        }
+    }
+    
+    // Forgot Password Dialog
+    if (showForgotPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                if (!isResetEmailSending) {
+                    showForgotPasswordDialog = false
+                    resetEmail = ""
+                    resetEmailResult = null
+                }
+            },
+            title = { Text("Reset Password") },
+            text = {
+                Column {
+                    Text(
+                        "Enter your email address and we'll send you a link to reset your password.",
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it },
+                        label = { Text("Email") },
+                        placeholder = { Text("Enter your email") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Email,
+                                contentDescription = "Email Icon"
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        enabled = !isResetEmailSending
+                    )
+                    
+                    if (isResetEmailSending) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sending email...")
+                        }
+                    }
+                    
+                    // Show error message if there is one
+                    resetEmailResult?.let { (success, message) ->
+                        if (!success && message != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (resetEmail.isNotBlank()) {
+                            isResetEmailSending = true
+                            resetEmailResult = null
+                            
+                            // Call reset password from the view model
+                            authViewModel.resetPassword(resetEmail) { success, errorMessage ->
+                                isResetEmailSending = false
+                                resetEmailResult = Pair(success, errorMessage)
+                            }
+                        }
+                    },
+                    enabled = resetEmail.isNotBlank() && !isResetEmailSending
+                ) {
+                    Text("Send Reset Link")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showForgotPasswordDialog = false
+                        resetEmail = ""
+                        resetEmailResult = null
+                    },
+                    enabled = !isResetEmailSending
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
     
     Scaffold(
@@ -171,7 +303,8 @@ fun LoginScreen(
                     modifier = Modifier
                         .align(Alignment.End)
                         .clickable {
-                            // TODO: Navigate to forgot password screen
+                            showForgotPasswordDialog = true
+                            resetEmail = email // Pre-fill with entered email if available
                         }
                 )
                 

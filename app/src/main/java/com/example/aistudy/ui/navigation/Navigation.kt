@@ -1,5 +1,6 @@
 package com.example.aistudy.ui.navigation
 
+import TestingScreen
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -14,7 +15,7 @@ import com.example.aistudy.ui.viewmodel.AuthViewModel
 import com.example.aistudy.ui.viewmodel.ViewModel
 import com.example.aistudy.ui.screen.SignupScreen
 import com.example.aistudy.ui.screen.LoginScreen
-import com.example.aistudy.ui.screen.TestingScreen
+import com.example.aistudy.ui.screen.SplashScreen
 
 sealed class Screen(val route: String) {
     object StudyPlanner : Screen("study_planner")
@@ -24,6 +25,7 @@ sealed class Screen(val route: String) {
     object Progress : Screen("progress")
     object Profile : Screen("profile")
     object CreateFlashcards : Screen("create_flashcards")
+    object Splash :Screen("splashscreen")
     object Testing :Screen("testing")
 }
 
@@ -33,7 +35,7 @@ fun NavGraph(navController: NavHostController,
              authViewModel: AuthViewModel)
 
 {
-    NavHost(navController = navController, startDestination = Screen.Login.route) {
+    NavHost(navController = navController, startDestination = Screen.Splash.route) {
         composable(Screen.StudyPlanner.route) {
             StudyPlannerScreen(selectedIndex = 0, navController = navController)
         }
@@ -57,9 +59,15 @@ fun NavGraph(navController: NavHostController,
         composable(Screen.CreateFlashcards.route) {
             CreateFlashcardsScreen(selectedIndex = 1, navController = navController)
         }
-        composable(Screen.Testing.route) {
-            TestingScreen(chatViewModel = viewModel, navController = navController)
+
+        composable(Screen.Splash.route) {
+            SplashScreen(navController = navController, authViewModel = authViewModel)
         }
+
+        composable(Screen.Testing.route) {
+            TestingScreen(chatViewModel = viewModel,navController = navController)
+        }
+
 
     }
 }
@@ -75,4 +83,3 @@ fun Navigation() {
         authViewModel = authViewModel
     )
 }
-

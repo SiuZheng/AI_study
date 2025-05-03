@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Visibility
@@ -93,6 +94,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -110,6 +113,10 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material3.ButtonDefaults
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -208,7 +215,8 @@ fun ProfileScreen(
                         isEditing = false
                     },
                     onCancel = { isEditing = false },
-                    isSmallScreen = isSmallScreen
+                    isSmallScreen = isSmallScreen,
+                    authViewModel = authViewModel
                 )
             } else {
                 ProfileHeader(
@@ -245,8 +253,22 @@ fun ProfileEditHeader(
     onUsernameChange: (String) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
-    isSmallScreen: Boolean
+    isSmallScreen: Boolean,
+    authViewModel: AuthViewModel
 ) {
+    var showPasswordChange by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var currentPasswordVisible by remember { mutableStateOf(false) }
+    var newPasswordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
+    
+    // For error handling
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var passwordSuccess by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -368,6 +390,228 @@ fun ProfileEditHeader(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Password change toggle button
+            Button(
+                onClick = { showPasswordChange = !showPasswordChange },
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            ) {
+                Text(
+                    text = if (showPasswordChange) "Hide Password Change" else "Change Password",
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+            
+            // Password change form
+            AnimatedVisibility(
+                visible = showPasswordChange,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                ) {
+                    // Current password field
+                    OutlinedTextField(
+                        value = currentPassword,
+                        onValueChange = { 
+                            currentPassword = it
+                            passwordError = null
+                        },
+                        label = { Text("Current Password") },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Current Password"
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { currentPasswordVisible = !currentPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (currentPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (currentPasswordVisible) "Hide Password" else "Show Password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (currentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // New password field
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { 
+                            newPassword = it
+                            passwordError = null
+                        },
+                        label = { Text("New Password") },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "New Password"
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (newPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (newPasswordVisible) "Hide Password" else "Show Password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Confirm password field
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { 
+                            confirmPassword = it
+                            passwordError = null
+                        },
+                        label = { Text("Confirm New Password") },
+                        leadingIcon = { 
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Confirm Password"
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (confirmPasswordVisible) "Hide Password" else "Show Password"
+                                )
+                            }
+                        },
+                        visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = passwordError != null
+                    )
+                    
+                    // Success message
+                    if (passwordSuccess != null) {
+                        Text(
+                            text = passwordSuccess!!,
+                            color = Color(0xFF4CAF50), // Green color for success
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                    }
+                    
+                    // Error message
+                    if (passwordError != null) {
+                        Text(
+                            text = passwordError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Update password button
+                    Button(
+                        onClick = {
+                            // Clear previous messages
+                            passwordError = null
+                            passwordSuccess = null
+                            
+                            // Validate passwords
+                            when {
+                                currentPassword.isEmpty() -> {
+                                    passwordError = "Current password is required"
+                                }
+                                newPassword.isEmpty() -> {
+                                    passwordError = "New password is required"
+                                }
+                                newPassword.length < 6 -> {
+                                    passwordError = "Password must be at least 6 characters"
+                                }
+                                newPassword != confirmPassword -> {
+                                    passwordError = "Passwords do not match"
+                                }
+                                else -> {
+                                    // Call the password update function
+                                    authViewModel.updatePassword(
+                                        currentPassword = currentPassword,
+                                        newPassword = newPassword,
+                                        onComplete = { success, message ->
+                                            if (success) {
+                                                // Set success message
+                                                passwordSuccess = "Password updated successfully!"
+                                                
+                                                // Clear fields but keep form open to show success message
+                                                currentPassword = ""
+                                                newPassword = ""
+                                                confirmPassword = ""
+                                                
+                                                // Auto-hide password change form after delay
+                                                MainScope().launch {
+                                                    delay(2000) // 2 seconds delay
+                                                    showPasswordChange = false
+                                                    passwordSuccess = null
+                                                }
+                                            } else {
+                                                // Show error message
+                                                passwordError = message ?: "Failed to update password"
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("Update Password")
+                    }
+                }
+            }
+        }
+    }
+    
+    // Show snackbar for password change errors/success
+    LaunchedEffect(passwordError, passwordSuccess) {
+        when {
+            passwordError != null -> {
+                snackbarHostState.showSnackbar(passwordError!!)
+            }
+            passwordSuccess != null -> {
+                snackbarHostState.showSnackbar(passwordSuccess!!)
+            }
         }
     }
 }
@@ -464,43 +708,43 @@ fun ProfileHeader(
                 
                 Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 8.dp))
                 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.School,
-                        contentDescription = "School",
-                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    Text(
-                        text = "Computer Science",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                    )
-                }
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Location",
-                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-                    
-                    Text(
-                        text = "Malaysia",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                    )
-                }
+//                Row(
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Default.School,
+//                        contentDescription = "School",
+//                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+//                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
+//                    )
+//
+//                    Spacer(modifier = Modifier.width(4.dp))
+//
+//                    Text(
+//                        text = "Computer Science",
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+//                    )
+//                }
+//
+//                Row(
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Default.LocationOn,
+//                        contentDescription = "Location",
+//                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+//                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
+//                    )
+//
+//                    Spacer(modifier = Modifier.width(4.dp))
+//
+//                    Text(
+//                        text = "Malaysia",
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+//                    )
+//                }
                 
                 // Show member since date
                 userData?.createdAt?.let { createdAt ->
