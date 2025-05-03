@@ -70,7 +70,7 @@ fun LoginScreen(
     // If user is logged in, navigate to home screen
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
-            navController.navigate(Screen.Profile.route) {
+            navController.navigate(Screen.StudyPlanner.route) {
                 popUpTo(Screen.Login.route) { inclusive = true }
             }
         }

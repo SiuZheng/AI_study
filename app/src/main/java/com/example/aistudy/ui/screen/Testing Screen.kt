@@ -10,15 +10,27 @@ import androidx.compose.runtime.setValue
 import com.example.aistudy.ui.viewmodel.ViewModel
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 
 data class ChatMessage(
     val message: String,
     val isUser: Boolean
 )
+
 @Composable
 fun TestingScreen(
     chatViewModel: ViewModel,
+    navController: NavController? = null
 ){
     var userInput by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
@@ -28,10 +40,34 @@ fun TestingScreen(
     LaunchedEffect(userInput) {
         chatViewModel.sendMessage(userInput)
     }
-    println("Respond:$response")
-    Column {
-        Text(text = "User input: $userInput")
-        Text(text = "Response: $response")
+    
+    Scaffold(
+        bottomBar = {
+            navController?.let {
+                BottomNavBar(
+                    selectedIndex = -1, // No tab selected in testing screen
+                    navController = navController
+                )
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Testing Chat",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Text(text = "User input: $userInput")
+            Text(text = "Response: $response")
+        }
     }
 }
 
