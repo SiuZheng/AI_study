@@ -328,4 +328,54 @@ class FlashcardViewModel : ViewModel() {
             }
         }
     }
+    
+    // Delete a flashcard set
+    fun deleteFlashcardSet(setId: String) {
+        val userId = getCurrentUserId()
+        if (userId == null) {
+            Log.e(TAG, "Cannot delete flashcard set: user not logged in")
+            _error.value = "You must be logged in to delete flashcards"
+            return
+        }
+        
+        // First remove from UI state
+        val currentSets = _flashcardSets.value.toMutableList()
+        val setToRemove = currentSets.find { it.id == setId }
+        
+        if (setToRemove != null) {
+            currentSets.remove(setToRemove)
+            _flashcardSets.value = currentSets
+            
+            // Then delete from Firestore
+            viewModelScope.launch {
+                try {
+                    // Get reference to set document
+                    val setDocRef = firestore.collection("users")
+                        .document(userId)
+                        .collection("flashcardSets")
+                        .document(setId)
+                    
+                    // Delete all cards in the set
+                    val cardDocs = setDocRef.collection("cards").get().await()
+                    for (cardDoc in cardDocs) {
+                        cardDoc.reference.delete().await()
+                    }
+                    
+                    // Delete the set document
+                    setDocRef.delete().await()
+                    
+                    Log.d(TAG, "Successfully deleted flashcard set with ID: $setId")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error deleting flashcard set from database", e)
+                    _error.value = "Failed to delete flashcard set"
+                    
+                    // If database deletion fails, add the set back to UI
+                    currentSets.add(setToRemove)
+                    _flashcardSets.value = currentSets
+                }
+            }
+        } else {
+            Log.w(TAG, "Flashcard set with ID $setId not found")
+        }
+    }
 } 

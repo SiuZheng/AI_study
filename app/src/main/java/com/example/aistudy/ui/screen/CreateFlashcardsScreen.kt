@@ -32,26 +32,144 @@ fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController,
     val error by viewModel.error.collectAsState()
     
     val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
+    
+    // Dialog states
+    var showAITopicDialog by remember { mutableStateOf(false) }
+    var aiTopic by remember { mutableStateOf("") }
+    
+    var showTypeDialog by remember { mutableStateOf(false) }
+    var selectedType by remember { mutableStateOf("") }
+    
+    var showTitleDialog by remember { mutableStateOf(false) }
+    var dialogTitle by remember { mutableStateOf("") }
+    var dialogAction by remember { mutableStateOf<() -> Unit>({}) }
+    
+    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
     
     // File picker launcher
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            if (title.isBlank()) {
-                // Show error or hint that title is required
-                viewModel.generateFlashcardsFromFile(context, it, "Document Flashcards")
-            } else {
-                viewModel.generateFlashcardsFromFile(context, it, title)
+            selectedFileUri = it
+            dialogTitle = "Document Flashcards"
+            dialogAction = {
+                viewModel.generateFlashcardsFromFile(context, selectedFileUri!!, dialogTitle)
+                navController.navigate(Routes.FLASHCARDS)
             }
-            // Navigate back to flashcards screen once file is uploaded
-            navController.navigate(Routes.FLASHCARDS)
+            showTitleDialog = true
         }
     }
     
+    // Title customization dialog
+    if (showTitleDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showTitleDialog = false 
+                dialogTitle = ""
+                selectedFileUri = null
+            },
+            title = { Text("Customize set name") },
+            text = {
+                Column {
+                    Text(
+                        "Give your flashcard set a name:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = dialogTitle,
+                        onValueChange = { dialogTitle = it },
+                        placeholder = { Text("Topic name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showTitleDialog = false
+                        dialogAction()
+                    },
+                    enabled = dialogTitle.isNotBlank()
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showTitleDialog = false 
+                        dialogTitle = ""
+                        selectedFileUri = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // AI Topic dialog
+    if (showAITopicDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showAITopicDialog = false 
+                aiTopic = ""
+            },
+            title = { Text("Enter topic for AI to generate") },
+            text = {
+                Column {
+                    Text(
+                        "What topic would you like flashcards for?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = aiTopic,
+                        onValueChange = { aiTopic = it },
+                        placeholder = { Text("E.g., Mathematics, History, Science") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (aiTopic.isNotBlank()) {
+                            showAITopicDialog = false
+                            dialogTitle = "$aiTopic Flashcards"
+                            dialogAction = {
+                                viewModel.generateFlashcardsFromType(aiTopic.lowercase(), dialogTitle)
+                                navController.navigate(Routes.FLASHCARDS)
+                            }
+                            showTitleDialog = true
+                            aiTopic = ""
+                        }
+                    },
+                    enabled = aiTopic.isNotBlank()
+                ) {
+                    Text("Next")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showAITopicDialog = false 
+                        aiTopic = ""
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
     // Type selection dialog
-    var showTypeDialog by remember { mutableStateOf(false) }
     val flashcardTypes = listOf("math", "programming", "language", "history", "science")
     
     if (showTypeDialog) {
@@ -63,10 +181,17 @@ fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController,
                     flashcardTypes.forEach { type ->
                         TextButton(
                             onClick = {
-                                viewModel.generateFlashcardsFromType(type)
                                 showTypeDialog = false
-                                // Navigate back to flashcards screen
-                                navController.navigate(Routes.FLASHCARDS)
+                                selectedType = type
+                                val typeName = type.replaceFirstChar { 
+                                    if (it.isLowerCase()) it.titlecase() else it.toString() 
+                                }
+                                dialogTitle = "$typeName Flashcards"
+                                dialogAction = {
+                                    viewModel.generateFlashcardsFromType(selectedType, dialogTitle)
+                                    navController.navigate(Routes.FLASHCARDS)
+                                }
+                                showTitleDialog = true
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -171,178 +296,74 @@ fun CreateFlashcardsScreen(selectedIndex: Int = 1, navController: NavController,
                     }
                 }
                 
-                // Title input
-                Text(
-                    text = "Title",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
-                )
-                
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = { Text("Enter flashcard set title", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        unfocusedIndicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                        focusedIndicatorColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                )
-                
                 // Options subtitle
                 Text(
                     text = "Options",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium,
                     fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 16.dp)
                 )
                 
-                // 2x2 Grid of options
+                // Vertical buttons layout
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Row 1
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    // Option 1: Choose a topic
+                    Button(
+                        onClick = { showTypeDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        // Option 1: Choose a topic
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clickable { showTypeDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 2.dp
-                            )
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    "Choose a topic",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 15.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        
-                        // Option 2: AI generate
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clickable { showTypeDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 2.dp
-                            )
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    "AI generate",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 15.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
+                        Text(
+                            "Choose a topic",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     
-                    // Row 2
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    // Option 2: AI generate
+                    Button(
+                        onClick = { showAITopicDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        // Option 3: Upload Document
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clickable { launcher.launch("*/*") },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 2.dp
-                            )
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    "Upload Document",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 15.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        
-                        // Option 4: Create manually
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clickable { /* TODO: Manual creation */ },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 2.dp
-                            )
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    "Create manually",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 15.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
+                        Text(
+                            "AI generate",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    // Option 3: Upload Document
+                    Button(
+                        onClick = { launcher.launch("*/*") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        )
+                    ) {
+                        Text(
+                            "Upload Document",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

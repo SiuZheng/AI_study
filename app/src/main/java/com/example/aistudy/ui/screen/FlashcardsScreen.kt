@@ -3,8 +3,16 @@ package com.example.aistudy.ui.screen
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -13,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
@@ -22,9 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,6 +44,8 @@ import com.example.aistudy.api.Flashcard
 import com.example.aistudy.api.FlashcardSet
 import com.example.aistudy.ui.navigation.Screen
 import com.example.aistudy.ui.viewmodel.FlashcardViewModel
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // Define navigation route constants
 private const val FLASHCARD_DETAIL_ROUTE = "flashcard_detail"
@@ -55,6 +68,10 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
     var showFileUploadDialog by remember { mutableStateOf(false) }
     var fileUploadTitle by remember { mutableStateOf("") }
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
+    
+    // Track items being removed with animation
+    val itemsRemoved = remember { mutableStateListOf<String>() }
+    val coroutineScope = rememberCoroutineScope()
     
     // File picker launcher
     val launcher = rememberLauncherForActivityResult(
@@ -400,19 +417,6 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
                         )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Debug button for creating test flashcards
-                        Button(
-                            onClick = { viewModel.createTestFlashcards() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("Create Test Flashcards")
-                        }
                     }
                 } else {
                     LazyVerticalGrid(
@@ -421,18 +425,36 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(flashcardSets.filter { 
-                            searchText.isEmpty() || 
-                            it.title.contains(searchText, ignoreCase = true) ||
-                            it.type.contains(searchText, ignoreCase = true)
-                        }) { flashcardSet ->
-                            FlashcardSetItem(
-                                flashcardSet = flashcardSet,
-                                onClick = {
-                                    viewModel.selectSet(flashcardSet.id)
-                                    navController.navigate("$FLASHCARD_DETAIL_ROUTE/${flashcardSet.id}")
-                                }
-                            )
+                        items(
+                            items = flashcardSets.filter { 
+                                searchText.isEmpty() || 
+                                it.title.contains(searchText, ignoreCase = true) ||
+                                it.type.contains(searchText, ignoreCase = true)
+                            },
+                            key = { it.id }
+                        ) { flashcardSet ->
+                            val isBeingRemoved = itemsRemoved.contains(flashcardSet.id)
+                            
+                            if (!isBeingRemoved) {
+                                SwipeableFlashcardSetItem(
+                                    flashcardSet = flashcardSet,
+                                    onClick = {
+                                        viewModel.selectSet(flashcardSet.id)
+                                        navController.navigate("$FLASHCARD_DETAIL_ROUTE/${flashcardSet.id}")
+                                    },
+                                    onDelete = {
+                                        // Add to removed items first for animation
+                                        itemsRemoved.add(flashcardSet.id)
+                                        
+                                        // Trigger the animation and then remove from ViewModel
+                                        coroutineScope.launch {
+                                            kotlinx.coroutines.delay(300) // Wait for animation to complete
+                                            viewModel.deleteFlashcardSet(flashcardSet.id)
+                                            itemsRemoved.remove(flashcardSet.id)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -442,57 +464,122 @@ fun FlashcardsScreen(selectedIndex: Int = 1, navController: NavController, viewM
 }
 
 @Composable
-fun FlashcardSetItem(flashcardSet: FlashcardSet, onClick: () -> Unit) {
-    ElevatedCard(
+fun SwipeableFlashcardSetItem(flashcardSet: FlashcardSet, onClick: () -> Unit, onDelete: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var cardWidth by remember { mutableStateOf(0f) }
+    
+    // Used to animate the card back to original position after partial swipe
+    val offsetX = remember { Animatable(0f) }
+    
+    // Threshold for delete action (30% of card width)
+    val deleteThreshold = 0.3f
+    
+    Box {
+        // Delete background (shown when card is dragged)
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(vertical = 4.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.error),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete",
+                tint = Color.White,
+                modifier = Modifier.padding(end = 24.dp)
+            )
+        }
+        
+        // Main card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .onGloballyPositioned { layoutCoordinates ->
+                    cardWidth = layoutCoordinates.size.width.toFloat()
+                }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        // Only allow dragging to the left (negative delta)
+                        if (delta <= 0) {
+                            scope.launch {
+                                offsetX.snapTo(offsetX.value + delta)
+                            }
+                        } else if (offsetX.value < 0) {
+                            // Allow returning to original position
+                            scope.launch {
+                                offsetX.snapTo(minOf(0f, offsetX.value + delta))
+                            }
+                        }
+                    },
+                    onDragStopped = { velocity ->
+                        scope.launch {
+                            // If dragged past threshold, trigger delete
+                            if (offsetX.value < -cardWidth * deleteThreshold) {
+                                onDelete()
+                            } else {
+                                // Otherwise, animate back to original position
+                                offsetX.animateTo(
+                                    targetValue = 0f,
+                                    initialVelocity = velocity
+                                )
+                            }
+                        }
+                    }
+                ),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.elevatedCardElevation(
+                defaultElevation = 4.dp
+            )
+        ) {
+            FlashcardSetContent(flashcardSet, onClick)
+        }
+    }
+}
+
+@Composable
+fun FlashcardSetContent(flashcardSet: FlashcardSet, onClick: () -> Unit) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(120.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.elevatedCardElevation(
-            defaultElevation = 4.dp
-        )
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = flashcardSet.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "${flashcardSet.cards.size} cards",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
-                )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Text(
-                    text = "Tap to view",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center
-                )
-            }
+            Text(
+                text = flashcardSet.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "${flashcardSet.cards.size} cards",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = "Tap to view",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
         }
     }
 } 
