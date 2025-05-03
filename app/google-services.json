@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "892213264565",
+    "project_id": "aistudy-9b912",
+    "storage_bucket": "aistudy-9b912.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:892213264565:android:82adc9cfe65f46109f7efc",
+        "android_client_info": {
+          "package_name": "com.example.aistudy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMatvMg8g1P5ghyjF33xD35v9-zUSro4c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
