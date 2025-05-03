@@ -16,6 +16,7 @@ import com.example.aistudy.ui.screen.CreateFlashcardsScreen
 import com.example.aistudy.ui.viewmodel.AuthViewModel
 import com.example.aistudy.ui.viewmodel.ViewModel
 import com.example.aistudy.ui.viewmodel.FlashcardViewModel
+import com.example.aistudy.ui.viewmodel.ProgressViewModel
 import com.example.aistudy.ui.screen.SignupScreen
 import com.example.aistudy.ui.screen.LoginScreen
 import com.example.aistudy.ui.screen.SplashScreen
@@ -42,8 +43,9 @@ fun NavGraph(navController: NavHostController,
              authViewModel: AuthViewModel)
 
 {
-    // Create a shared FlashcardViewModel for use across screens
+    // Create shared ViewModels for use across screens
     val flashcardViewModel: FlashcardViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val progressViewModel: ProgressViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     
     NavHost(navController = navController, startDestination = Screen.Splash.route) {
         composable(Screen.StudyPlanner.route) {

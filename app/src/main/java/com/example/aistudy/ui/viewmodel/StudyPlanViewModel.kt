@@ -1,5 +1,6 @@
 package com.example.aistudy.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aistudy.api.DailyPlan
@@ -16,6 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class StudyPlanViewModel : ViewModel() {
+    private val TAG = "StudyPlanViewModel"
     private val repository = StudyPlanRepository()
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
@@ -61,6 +63,8 @@ class StudyPlanViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "Loading plans from Firestore")
+                
                 // Load plans
                 val plansSnapshot = firestore.collection("users")
                     .document(userId)
@@ -81,6 +85,7 @@ class StudyPlanViewModel : ViewModel() {
                     DailyPlan(date, tasks)
                 }
                 
+                Log.d(TAG, "Loaded ${plans.size} plans from Firestore")
                 _studyPlan.value = plans
                 
                 // Load completed tasks
@@ -92,6 +97,7 @@ class StudyPlanViewModel : ViewModel() {
                     
                     if (completedTasksArray.isNotEmpty()) {
                         completedTasksMap[date] = completedTasksArray.toMutableSet()
+                        Log.d(TAG, "Loaded ${completedTasksArray.size} completed tasks for date $date")
                     }
                 }
                 
@@ -106,6 +112,7 @@ class StudyPlanViewModel : ViewModel() {
                     
                     if (incompleteTasks.isNotEmpty()) {
                         incompletePlansMap[date] = incompleteTasks
+                        Log.d(TAG, "Loaded ${incompleteTasks.size} incomplete tasks for date $date")
                     }
                 }
                 
@@ -118,6 +125,7 @@ class StudyPlanViewModel : ViewModel() {
                 checkForOverduePlans()
                 
             } catch (e: Exception) {
+                Log.e(TAG, "Error loading plans from Firestore", e)
                 _error.value = "Failed to load plans: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -177,6 +185,9 @@ class StudyPlanViewModel : ViewModel() {
                     _studyPlan.value = response.study_plan
                     _isLoading.value = false
                     
+                    // Reset the completed tasks when generating a new plan
+                    _completedTasks.value = emptyMap()
+                    
                     // Save the generated plan to Firestore
                     savePlansToFirestore(response.study_plan)
                 }
@@ -192,6 +203,8 @@ class StudyPlanViewModel : ViewModel() {
         
         viewModelScope.launch {
             try {
+                Log.d(TAG, "Saving ${plans.size} plans to Firestore")
+                
                 // Delete old plans first
                 val oldPlansSnapshot = firestore.collection("users")
                     .document(userId)
@@ -252,7 +265,7 @@ class StudyPlanViewModel : ViewModel() {
                 }
                 batch.commit().await()
                 
-                // Add new plans
+                // Add new plans - always with empty completedTasks
                 plans.forEach { plan ->
                     val planData = hashMapOf(
                         "date" to plan.date,
@@ -262,7 +275,7 @@ class StudyPlanViewModel : ViewModel() {
                                 "duration" to task.duration
                             )
                         },
-                        "completedTasks" to listOf<String>(),
+                        "completedTasks" to listOf<String>(),  // Always empty for new plans
                         "incompleteTasks" to listOf<String>(),
                         "created_at" to Date()
                     )
@@ -277,7 +290,17 @@ class StudyPlanViewModel : ViewModel() {
                 
                 // Reload statistics after update
                 loadStudyStatistics()
+                
+                // Clear any cached data after saving new plans
+                _completedTasks.value = emptyMap()
+                _completedPlans.value = emptySet()
+                _incompletePlans.value = emptyMap()
+                
+                // Reload the plans to refresh the UI
+                loadPlansFromFirestore()
+                
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to save plans to Firestore", e)
                 _error.value = "Failed to save plans: ${e.message}"
             }
         }
@@ -498,6 +521,7 @@ class StudyPlanViewModel : ViewModel() {
                         }
                     } catch (e: Exception) {
                         // If date parsing fails, skip this plan
+                        Log.e(TAG, "Error parsing date for plan: ${plan.date}", e)
                         return@forEach
                     }
                 }
@@ -530,6 +554,7 @@ class StudyPlanViewModel : ViewModel() {
                     }
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to update plan completion status", e)
                 _error.value = "Failed to update plan completion status: ${e.message}"
             }
         }
@@ -548,12 +573,16 @@ class StudyPlanViewModel : ViewModel() {
         
         viewModelScope.launch {
             try {
+                Log.d(TAG, "Checking for overdue plans, today is: ${dateFormat.format(today.time)}")
+                
                 studyPlan.value.forEach { plan ->
                     try {
                         val planDate = dateFormat.parse(plan.date) ?: return@forEach
                         
-                        // Check if the plan date is in the past
+                        // Only check plans in the past, not future plans
                         if (planDate.before(today.time)) {
+                            Log.d(TAG, "Plan date ${plan.date} is before today")
+                            
                             val completedTasksForPlan = _completedTasks.value[plan.date] ?: emptySet()
                             
                             // Find tasks that were not completed
@@ -563,6 +592,8 @@ class StudyPlanViewModel : ViewModel() {
                             
                             // If there are incomplete tasks, record them
                             if (incompleteTasksList.isNotEmpty()) {
+                                Log.d(TAG, "Found ${incompleteTasksList.size} incomplete tasks for overdue plan ${plan.date}")
+                                
                                 updatedIncompletePlans[plan.date] = incompleteTasksList
                                 
                                 // Update in Firestore
@@ -586,9 +617,31 @@ class StudyPlanViewModel : ViewModel() {
                                     .update("totalPlansIncomplete", FieldValue.increment(1))
                                     .await()
                             }
+                        } else {
+                            // Handle future plans - make sure they're not marked as incomplete
+                            Log.d(TAG, "Plan date ${plan.date} is not before today, removing from incomplete plans")
+                            
+                            // Remove from incomplete plans if it exists
+                            if (updatedIncompletePlans.containsKey(plan.date)) {
+                                updatedIncompletePlans.remove(plan.date)
+                                
+                                // Update in Firestore
+                                firestore.collection("users")
+                                    .document(userId)
+                                    .collection("study_plans")
+                                    .document(plan.date)
+                                    .update(
+                                        mapOf(
+                                            "incompleteTasks" to listOf<String>(),
+                                            "isOverdue" to false
+                                        )
+                                    )
+                                    .await()
+                            }
                         }
                     } catch (e: Exception) {
                         // If date parsing fails, skip this plan
+                        Log.e(TAG, "Error processing plan date: ${plan.date}", e)
                         return@forEach
                     }
                 }
@@ -596,6 +649,7 @@ class StudyPlanViewModel : ViewModel() {
                 _incompletePlans.value = updatedIncompletePlans
                 
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to check overdue plans", e)
                 _error.value = "Failed to check overdue plans: ${e.message}"
             }
         }
