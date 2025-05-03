@@ -26,4 +26,11 @@ interface ApiService {
         @Part("step") step: RequestBody,
         @Part("flashcard_type") flashcardType: RequestBody
     ): FlashcardResponse
+    
+    @Multipart
+    @POST(Config.WORKFLOW_ENDPOINT)
+    suspend fun generateStudyPlan(
+        @Part("step") step: RequestBody,
+        @Part("planner_prompt") plannerPrompt: RequestBody
+    ): StudyPlanResponse
 }
