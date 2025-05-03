@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -171,17 +172,6 @@ fun ProfileScreen(
             .windowInsetsPadding(WindowInsets.statusBars),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            if (!isEditing) {
-                FloatingActionButton(
-                    onClick = { isEditing = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Default.Edit, "Edit Profile")
-                }
-            }
-        },
         bottomBar = {
             // Add BottomNavBar here
             BottomNavBar(
@@ -219,20 +209,35 @@ fun ProfileScreen(
                     authViewModel = authViewModel
                 )
             } else {
-                ProfileHeader(
-                    user = currentUser,
-                    userData = userData,
-                    isSmallScreen = isSmallScreen
-                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ProfileHeader(
+                        user = currentUser,
+                        userData = userData,
+                        isSmallScreen = isSmallScreen
+                    )
+                    
+                    // Edit button in the bottom right of the profile header
+                    FloatingActionButton(
+                        onClick = { isEditing = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(y = (-18).dp, x = (-15).dp)
+                            .size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Profile",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
             
             StreakAchievement(streak = userData?.streak ?: 0, isSmallScreen = isSmallScreen)
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            UserStats(userData = userData)
             
             Spacer(modifier = Modifier.height(32.dp))
             
@@ -313,7 +318,7 @@ fun ProfileEditHeader(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Profile picture
+            // Anonymous profile picture
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -325,34 +330,16 @@ fun ProfileEditHeader(
                     )
                     .padding(4.dp)
                     .clip(CircleShape)
-                    .background(Color.LightGray),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                // Use a placeholder image
-                Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                    contentDescription = "Profile Picture",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                // Anonymous user icon
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Anonymous User",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(if (isSmallScreen) 50.dp else 64.dp)
                 )
-                
-                // Edit button overlay
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(if (isSmallScreen) 24.dp else 30.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable { /* TODO: Add photo picker functionality */ },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Profile Picture",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 18.dp)
-                    )
-                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -648,7 +635,7 @@ fun ProfileHeader(
                 .padding(if (isSmallScreen) 12.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile picture
+            // Anonymous profile picture
             Box(
                 modifier = Modifier
                     .size(if (isSmallScreen) 80.dp else 100.dp)
@@ -659,33 +646,16 @@ fun ProfileHeader(
                     )
                     .padding(4.dp)
                     .clip(CircleShape)
-                    .background(Color.LightGray)
+                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
             ) {
-                // Use a placeholder image for now
-                Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                    contentDescription = "Profile Picture",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                // Anonymous user icon
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Anonymous User",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(if (isSmallScreen) 50.dp else 64.dp)
                 )
-                
-                // Edit button overlay
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(if (isSmallScreen) 24.dp else 30.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable { /* TODO: Add photo picker functionality */ },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Profile Picture",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 18.dp)
-                    )
-                }
             }
             
             Spacer(modifier = Modifier.width(if (isSmallScreen) 12.dp else 16.dp))
@@ -707,44 +677,6 @@ fun ProfileHeader(
                 )
                 
                 Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 8.dp))
-                
-//                Row(
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Default.School,
-//                        contentDescription = "School",
-//                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-//                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
-//                    )
-//
-//                    Spacer(modifier = Modifier.width(4.dp))
-//
-//                    Text(
-//                        text = "Computer Science",
-//                        style = MaterialTheme.typography.bodySmall,
-//                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-//                    )
-//                }
-//
-//                Row(
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Default.LocationOn,
-//                        contentDescription = "Location",
-//                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-//                        modifier = Modifier.size(if (isSmallScreen) 14.dp else 16.dp)
-//                    )
-//
-//                    Spacer(modifier = Modifier.width(4.dp))
-//
-//                    Text(
-//                        text = "Malaysia",
-//                        style = MaterialTheme.typography.bodySmall,
-//                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-//                    )
-//                }
                 
                 // Show member since date
                 userData?.createdAt?.let { createdAt ->
@@ -1007,74 +939,6 @@ fun StreakAchievement(streak: Int, isSmallScreen: Boolean) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun UserStats(userData: UserData?) {
-    Column {
-        Text(
-            text = "Your Stats",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                StatItem(
-                    title = "Total Study Hours", 
-                    value = (userData?.totalStudyHours ?: 0).toString()
-                )
-                
-                StatItem(
-                    title = "Flashcards Created", 
-                    value = (userData?.flashcardsCreated ?: 0).toString(),
-                    showDivider = false
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun StatItem(
-    title: String,
-    value: String,
-    showDivider: Boolean = true
-) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        if (showDivider) {
-            Divider(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                thickness = 1.dp
-            )
         }
     }
 }

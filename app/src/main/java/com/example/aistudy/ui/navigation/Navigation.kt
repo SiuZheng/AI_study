@@ -1,6 +1,6 @@
 package com.example.aistudy.ui.navigation
 
-import TestingScreen
+
 import androidx.compose.runtime.Composable
 import androidx.core.splashscreen.SplashScreen
 import androidx.navigation.NavHostController
@@ -19,6 +19,7 @@ import com.example.aistudy.ui.viewmodel.FlashcardViewModel
 import com.example.aistudy.ui.screen.SignupScreen
 import com.example.aistudy.ui.screen.LoginScreen
 import com.example.aistudy.ui.screen.SplashScreen
+import com.example.aistudy.ui.screen.TestingScreen
 
 sealed class Screen(val route: String) {
     object StudyPlanner : Screen("study_planner")
