@@ -73,6 +73,3 @@ The app requires a local backend to communicate with Dify AI services.
 *   `api/`: Retrofit service definitions and the Python FastAPI backend script.
 *   `navigation/`: Navigation graph and route definitions.
 
-## License
-
-[Add your license here, e.g., MIT]
