@@ -75,6 +75,7 @@ The app requires a local backend to communicate with Dify AI services.
 *   
 ## Demo
 
+<img src="assets/Picture10.jpg" width="200"><br>
 <img src="assets/Picture1.jpg" width="200"><br>
 <img src="assets/Picture2.jpg" width="200"><br>
 <img src="assets/Picture3.jpg" width="200"><br>
@@ -84,7 +85,6 @@ The app requires a local backend to communicate with Dify AI services.
 <img src="assets/Picture7.jpg" width="200"><br>
 <img src="assets/Picture8.jpg" width="200"><br>
 <img src="assets/Picture9.jpg" width="200"><br>
-<img src="assets/Picture10.jpg" width="200"><br>
 <img src="assets/Picture11.jpg" width="200"><br>
 <img src="assets/Picture12.jpg" width="200"><br>
 <img src="assets/Picture13.jpg" width="200"><br>
