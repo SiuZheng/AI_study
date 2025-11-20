@@ -72,4 +72,19 @@ The app requires a local backend to communicate with Dify AI services.
 *   `data/`: Data classes and models.
 *   `api/`: Retrofit service definitions and the Python FastAPI backend script.
 *   `navigation/`: Navigation graph and route definitions.
+*   
+## Demo
 
+<img src="assets/picture1.jpg" width="400"><br>
+<img src="assets/picture2.jpg" width="400"><br>
+<img src="assets/picture3.jpg" width="400"><br>
+<img src="assets/picture4.jpg" width="400"><br>
+<img src="assets/picture5.jpg" width="400"><br>
+<img src="assets/picture6.jpg" width="400"><br>
+<img src="assets/picture7.jpg" width="400"><br>
+<img src="assets/picture8.jpg" width="400"><br>
+<img src="assets/picture9.jpg" width="400"><br>
+<img src="assets/picture10.jpg" width="400"><br>
+<img src="assets/picture11.jpg" width="400"><br>
+<img src="assets/picture12.jpg" width="400"><br>
+<img src="assets/picture13.jpg" width="400"><br>
